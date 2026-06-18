@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useGameStore } from './gameStore'
+import gameConfig from '../config/gameConfig'
 
 export interface SaveSlot {
   id: number
@@ -58,7 +59,11 @@ export const useSaveStore = defineStore('save', () => {
       collectedCards: gameStore.collectedCards,
       logs: gameStore.logs,
       history: gameStore.history,
-      darkMode: gameStore.darkMode
+      darkMode: gameStore.darkMode,
+      currentEventId: gameStore.currentEvent?.id || null,
+      showEventModal: gameStore.showEventModal,
+      logIdCounter: gameStore.logIdCounter,
+      lastActionContext: gameStore.lastActionContext
     }
     return JSON.stringify(state)
   }
@@ -78,6 +83,23 @@ export const useSaveStore = defineStore('save', () => {
       gameStore.logs = state.logs
       gameStore.history = state.history
       gameStore.darkMode = state.darkMode
+      gameStore.logIdCounter = state.logIdCounter || 0
+      gameStore.lastActionContext = state.lastActionContext || null
+
+      if (state.currentEventId) {
+        const event = gameConfig.events.find(e => e.id === state.currentEventId)
+        if (event) {
+          gameStore.currentEvent = event
+          gameStore.showEventModal = state.showEventModal ?? true
+        } else {
+          gameStore.currentEvent = null
+          gameStore.showEventModal = false
+        }
+      } else {
+        gameStore.currentEvent = null
+        gameStore.showEventModal = false
+      }
+
       return true
     } catch (e) {
       console.error('Failed to deserialize game state:', e)

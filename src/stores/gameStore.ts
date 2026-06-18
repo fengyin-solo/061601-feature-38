@@ -43,6 +43,14 @@ export interface HistorySnapshot {
   logs: LogEntry[]
 }
 
+export interface LastActionContext {
+  type: 'chat' | 'gift' | 'work' | 'event' | 'system'
+  summary: string
+  timestamp: number
+  characterId?: string
+  characterName?: string
+}
+
 export const useGameStore = defineStore('game', () => {
   const day = ref(1)
   const timeSlot = ref<TimeOfDay>('morning')
@@ -52,6 +60,8 @@ export const useGameStore = defineStore('game', () => {
   const currentEvent = ref<GameEventConfig | null>(null)
   const showEventModal = ref(false)
   const darkMode = ref(false)
+  const lastActionContext = ref<LastActionContext | null>(null)
+  const logIdCounter = ref(0)
 
   const characters = ref<CharacterState[]>(
     gameConfig.characters.map(c => ({
@@ -67,7 +77,6 @@ export const useGameStore = defineStore('game', () => {
   const collectedCards = ref<string[]>([])
   const logs = ref<LogEntry[]>([])
   const history = ref<HistorySnapshot[]>([])
-  let logIdCounter = 0
 
   const unlockedCharacters = computed(() =>
     characters.value.filter(c => c.unlocked)
@@ -83,7 +92,7 @@ export const useGameStore = defineStore('game', () => {
 
   function addLog(type: LogEntry['type'], message: string, characterId?: string) {
     logs.value.push({
-      id: ++logIdCounter,
+      id: ++logIdCounter.value,
       day: day.value,
       time: timeSlot.value,
       type,
@@ -247,7 +256,6 @@ export const useGameStore = defineStore('game', () => {
     updateCharacterAffinity(characterId, affinityChange)
     updateCharacterMood(characterId, affinityChange > 0 ? 5 : -3)
 
-    const moodBefore = charState.mood
     const characterName = charConfig.name
 
     let message = `和 ${characterName} 聊起了「${topic.topic}」`
@@ -257,6 +265,14 @@ export const useGameStore = defineStore('game', () => {
       message += `，ta好像不太感兴趣...（好感 ${affinityChange}）`
     } else {
       message += '，气氛平平。'
+    }
+
+    lastActionContext.value = {
+      type: 'chat',
+      summary: message,
+      timestamp: Date.now(),
+      characterId: characterId,
+      characterName: characterName
     }
 
     addLog('action', message, characterId)
@@ -300,6 +316,14 @@ export const useGameStore = defineStore('game', () => {
       message += `，ta收下了。（好感 +${affinityChange}）`
     }
 
+    lastActionContext.value = {
+      type: 'gift',
+      summary: message,
+      timestamp: Date.now(),
+      characterId: characterId,
+      characterName: characterName
+    }
+
     addLog('action', message, characterId)
     advanceTime()
     return true
@@ -317,6 +341,13 @@ export const useGameStore = defineStore('game', () => {
     })
 
     addLog('action', `💼 打工赚了 ${earned} 代币（角色们的心情略有下降）`)
+
+    lastActionContext.value = {
+      type: 'work',
+      summary: `打工赚了 ${earned} 代币`,
+      timestamp: Date.now()
+    }
+
     advanceTime()
     return true
   }
@@ -396,6 +427,14 @@ export const useGameStore = defineStore('game', () => {
 
     addLog('story', `选择了：${choice.text}`)
 
+    lastActionContext.value = {
+      type: 'event',
+      summary: `选择了：${choice.text}`,
+      timestamp: Date.now(),
+      characterId: event?.characterId,
+      characterName: event?.characterId ? gameConfig.characters.find(c => c.id === event.characterId)?.name : undefined
+    }
+
     currentEvent.value = null
     showEventModal.value = false
 
@@ -426,6 +465,8 @@ export const useGameStore = defineStore('game', () => {
     selectedCharacterId.value = null
     currentEvent.value = null
     showEventModal.value = false
+    lastActionContext.value = null
+    logIdCounter.value = 0
 
     characters.value = gameConfig.characters.map(c => ({
       id: c.id,
@@ -439,7 +480,6 @@ export const useGameStore = defineStore('game', () => {
     collectedCards.value = []
     logs.value = []
     history.value = []
-    logIdCounter = 0
 
     addLog('system', '🎮 游戏开始！欢迎来到恋爱物语')
     checkAndTriggerEvent()
@@ -470,6 +510,8 @@ export const useGameStore = defineStore('game', () => {
     currentEvent,
     showEventModal,
     darkMode,
+    lastActionContext,
+    logIdCounter,
     addLog,
     saveHistory,
     rollbackToStep,
