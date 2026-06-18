@@ -1,11 +1,26 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useGameStore } from '../stores/gameStore'
 import { getTimeLabel } from '../utils/gameUtils'
 
 const emit = defineEmits<{
   (e: 'close'): void
 }>()
+
+const isVisible = ref(false)
+
+onMounted(() => {
+  requestAnimationFrame(() => {
+    isVisible.value = true
+  })
+})
+
+function closeModal() {
+  isVisible.value = false
+  setTimeout(() => {
+    emit('close')
+  }, 300)
+}
 
 const gameStore = useGameStore()
 
@@ -15,7 +30,7 @@ function rollback(index: number) {
   const realIndex = gameStore.history.length - 1 - index
   if (confirm(`确定要回退到第 ${gameStore.history[realIndex].day} 天吗？之后的进度将丢失。`)) {
     gameStore.rollbackToStep(realIndex)
-    emit('close')
+    closeModal()
   }
 }
 
@@ -30,12 +45,13 @@ function getStepSummary(snapshot: any): string {
 
 <template>
   <Teleport to="body">
-    <div class="modal-overlay" @click.self="emit('close')">
-      <div class="modal-content history-modal">
-        <div class="modal-header">
-          <h2>📜 历史记录</h2>
-          <button class="close-btn" @click="emit('close')">✕</button>
-        </div>
+    <Transition name="modal">
+      <div v-if="isVisible" class="modal-overlay" @click.self="closeModal()">
+        <div class="modal-content history-modal">
+          <div class="modal-header">
+            <h2>📜 历史记录</h2>
+            <button class="close-btn" @click="closeModal()">✕</button>
+          </div>
 
         <div class="history-hint">
           💡 点击任意历史步骤可回退到该状态
@@ -67,6 +83,7 @@ function getStepSummary(snapshot: any): string {
         </div>
       </div>
     </div>
+    </Transition>
   </Teleport>
 </template>
 

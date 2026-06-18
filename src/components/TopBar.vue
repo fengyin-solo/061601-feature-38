@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref, watch } from 'vue'
 import { useGameStore } from '../stores/gameStore'
 import { getTimeLabel, getTimeIcon } from '../utils/gameUtils'
 
@@ -11,6 +12,31 @@ const emit = defineEmits<{
 }>()
 
 const gameStore = useGameStore()
+
+const actionsAnimating = ref(false)
+const resourcesAnimating = ref(false)
+const dayAnimating = ref(false)
+
+watch(() => gameStore.actionsRemaining, () => {
+  actionsAnimating.value = true
+  setTimeout(() => {
+    actionsAnimating.value = false
+  }, 500)
+})
+
+watch(() => gameStore.resources, () => {
+  resourcesAnimating.value = true
+  setTimeout(() => {
+    resourcesAnimating.value = false
+  }, 500)
+})
+
+watch(() => gameStore.day, () => {
+  dayAnimating.value = true
+  setTimeout(() => {
+    dayAnimating.value = false
+  }, 500)
+})
 </script>
 
 <template>
@@ -21,7 +47,7 @@ const gameStore = useGameStore()
     </div>
 
     <div class="status-info">
-      <div class="status-item day">
+      <div class="status-item day" :class="{ 'animate-pulse': dayAnimating }">
         <span class="status-icon">📅</span>
         <span>第 {{ gameStore.day }} 天</span>
       </div>
@@ -29,11 +55,11 @@ const gameStore = useGameStore()
         <span class="status-icon">{{ getTimeIcon(gameStore.timeSlot) }}</span>
         <span>{{ getTimeLabel(gameStore.timeSlot) }}</span>
       </div>
-      <div class="status-item actions">
+      <div class="status-item actions" :class="{ 'animate-shake': actionsAnimating }">
         <span class="status-icon">⚡</span>
         <span>行动力 {{ gameStore.actionsRemaining }}</span>
       </div>
-      <div class="status-item resources">
+      <div class="status-item resources" :class="{ 'animate-bounce': resourcesAnimating }">
         <span class="status-icon">💰</span>
         <span>{{ gameStore.resources }} 代币</span>
       </div>
@@ -76,6 +102,11 @@ const gameStore = useGameStore()
 
 .title-icon {
   font-size: 28px;
+  transition: transform 0.3s ease;
+}
+
+.game-title:hover .title-icon {
+  transform: scale(1.2) rotate(-10deg);
 }
 
 .game-title h1 {
@@ -103,10 +134,44 @@ const gameStore = useGameStore()
   border-radius: var(--radius-md);
   font-size: 14px;
   font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.status-item.animate-pulse {
+  animation: statusPulse 0.5s ease;
+}
+
+.status-item.animate-shake {
+  animation: statusShake 0.5s ease;
+}
+
+.status-item.animate-bounce {
+  animation: statusBounce 0.5s ease;
+}
+
+@keyframes statusPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); box-shadow: 0 0 20px var(--accent-primary); }
+}
+
+@keyframes statusShake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-3px); }
+  75% { transform: translateX(3px); }
+}
+
+@keyframes statusBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
 }
 
 .status-icon {
   font-size: 18px;
+  transition: transform 0.3s ease;
+}
+
+.status-item:hover .status-icon {
+  transform: scale(1.2);
 }
 
 .toolbar {
@@ -123,15 +188,17 @@ const gameStore = useGameStore()
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: all 0.2s ease;
 }
 
 .toolbar-btn:hover {
   background: var(--accent-light);
-  transform: scale(1.05);
+  transform: scale(1.1) rotate(5deg);
 }
 
 .toolbar-btn.reset:hover {
   background: #fee2e2;
+  transform: scale(1.1) rotate(-10deg);
 }
 
 @media (max-width: 768px) {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useGameStore } from '../stores/gameStore'
 import gameConfig from '../config/gameConfig'
 import {
@@ -11,12 +11,43 @@ import {
 
 const gameStore = useGameStore()
 
+const animatingChars = ref<Record<string, { affinity: boolean; mood: boolean }>>({})
+
 const charactersWithConfig = computed(() => {
   return gameStore.unlockedCharacters.map(charState => {
     const config = gameConfig.characters.find(c => c.id === charState.id)
     return { state: charState, config }
   }).filter(item => item.config)
 })
+
+watch(() => gameStore.characters, (newChars, oldChars) => {
+  if (!oldChars) return
+  
+  newChars.forEach((newChar, index) => {
+    const oldChar = oldChars[index]
+    if (!oldChar) return
+    
+    if (newChar.affinity !== oldChar.affinity) {
+      triggerAnimation(newChar.id, 'affinity')
+    }
+    if (newChar.mood !== oldChar.mood) {
+      triggerAnimation(newChar.id, 'mood')
+    }
+  })
+}, { deep: true })
+
+function triggerAnimation(charId: string, type: 'affinity' | 'mood') {
+  if (!animatingChars.value[charId]) {
+    animatingChars.value[charId] = { affinity: false, mood: false }
+  }
+  animatingChars.value[charId][type] = true
+  
+  setTimeout(() => {
+    if (animatingChars.value[charId]) {
+      animatingChars.value[charId][type] = false
+    }
+  }, 600)
+}
 
 function selectCharacter(id: string) {
   gameStore.selectCharacter(id)
@@ -43,7 +74,9 @@ function selectCharacter(id: string) {
         <div class="character-info">
           <div class="character-header">
             <span class="character-name">{{ item.config?.name }}</span>
-            <span class="affinity-stage">{{ getAffinityStage(item.state.affinity) }}</span>
+            <span class="affinity-stage" :class="{ 'animate-pulse': animatingChars[item.state.id]?.affinity }">
+              {{ getAffinityStage(item.state.affinity) }}
+            </span>
           </div>
           
           <div class="stat-row">
@@ -51,13 +84,16 @@ function selectCharacter(id: string) {
             <div class="progress-bar">
               <div 
                 class="progress-fill"
+                :class="{ 'progress-animate': animatingChars[item.state.id]?.affinity }"
                 :style="{ 
                   width: `${Math.max(0, (item.state.affinity / gameConfig.maxAffinity) * 100)}%`,
                   backgroundColor: getAffinityColor(item.state.affinity, gameConfig.maxAffinity)
                 }"
               ></div>
             </div>
-            <span class="stat-value">{{ item.state.affinity }}</span>
+            <span class="stat-value" :class="{ 'value-animate': animatingChars[item.state.id]?.affinity }">
+              {{ item.state.affinity }}
+            </span>
           </div>
           
           <div class="stat-row">
@@ -65,13 +101,14 @@ function selectCharacter(id: string) {
             <div class="progress-bar">
               <div 
                 class="progress-fill"
+                :class="{ 'progress-animate': animatingChars[item.state.id]?.mood }"
                 :style="{ 
                   width: `${(item.state.mood / gameConfig.maxMood) * 100}%`,
                   backgroundColor: getMoodColor(item.state.mood)
                 }"
               ></div>
             </div>
-            <span class="stat-value mood" :style="{ color: getMoodColor(item.state.mood) }">
+            <span class="stat-value mood" :style="{ color: getMoodColor(item.state.mood) }" :class="{ 'value-animate': animatingChars[item.state.id]?.mood }">
               {{ getMoodLabel(item.state.mood) }}
             </span>
           </div>
@@ -142,6 +179,11 @@ function selectCharacter(id: string) {
   justify-content: center;
   font-size: 28px;
   flex-shrink: 0;
+  transition: transform 0.3s ease;
+}
+
+.character-card:hover .character-avatar {
+  transform: scale(1.1);
 }
 
 .character-info {
@@ -167,6 +209,16 @@ function selectCharacter(id: string) {
   background: var(--accent-primary);
   color: white;
   border-radius: 9999px;
+  transition: transform 0.3s ease;
+}
+
+.affinity-stage.animate-pulse {
+  animation: stagePulse 0.6s ease;
+}
+
+@keyframes stagePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
 }
 
 .stat-row {
@@ -194,7 +246,16 @@ function selectCharacter(id: string) {
 .progress-fill {
   height: 100%;
   border-radius: 3px;
-  transition: width 0.3s;
+  transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.3s;
+}
+
+.progress-fill.progress-animate {
+  animation: progressGlow 0.6s ease;
+}
+
+@keyframes progressGlow {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.4); }
 }
 
 .stat-value {
@@ -202,6 +263,16 @@ function selectCharacter(id: string) {
   font-weight: 500;
   min-width: 30px;
   text-align: right;
+  transition: transform 0.3s ease, color 0.3s;
+}
+
+.stat-value.value-animate {
+  animation: valueBounce 0.6s ease;
+}
+
+@keyframes valueBounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.3); }
 }
 
 .stat-value.mood {

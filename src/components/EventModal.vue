@@ -1,21 +1,61 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useGameStore } from '../stores/gameStore'
 import gameConfig from '../config/gameConfig'
 
 const gameStore = useGameStore()
 
 const event = computed(() => gameStore.currentEvent)
+const showResult = ref(false)
+const selectedChoice = ref<any>(null)
+const resultText = ref('')
+const isClosing = ref(false)
 
 const characterConfig = computed(() => {
   if (!event.value?.characterId) return null
   return gameConfig.characters.find(c => c.id === event.value!.characterId)
 })
 
+watch(() => gameStore.showEventModal, (newVal) => {
+  if (newVal) {
+    showResult.value = false
+    selectedChoice.value = null
+    isClosing.value = false
+  }
+})
+
 function handleChoice(choiceId: string) {
   const choice = event.value?.choices.find(c => c.id === choiceId)
   if (choice) {
-    gameStore.handleEventChoice(choice)
+    selectedChoice.value = choice
+    showResult.value = true
+    
+    let effects: string[] = []
+    choice.effects.forEach((effect: any) => {
+      if (effect.affinityChange !== undefined) {
+        const char = gameConfig.characters.find(c => c.id === effect.characterId)
+        const name = char?.name || effect.characterId
+        const sign = effect.affinityChange > 0 ? '+' : ''
+        effects.push(`${name} 好感 ${sign}${effect.affinityChange}`)
+      }
+      if (effect.moodChange !== undefined) {
+        const sign = effect.moodChange > 0 ? '+' : ''
+        effects.push(`心情 ${sign}${effect.moodChange}`)
+      }
+    })
+    if (choice.resourceChange !== undefined) {
+      const sign = choice.resourceChange > 0 ? '+' : ''
+      effects.push(`代币 ${sign}${choice.resourceChange}`)
+    }
+    
+    resultText.value = effects.length > 0 ? effects.join('，') : '一切如常...'
+    
+    setTimeout(() => {
+      isClosing.value = true
+      setTimeout(() => {
+        gameStore.handleEventChoice(choice)
+      }, 300)
+    }, 1200)
   }
 }
 
@@ -38,51 +78,155 @@ function formatEffect(effect: any): string {
 
 <template>
   <Teleport to="body">
-    <div v-if="gameStore.showEventModal && event" class="modal-overlay" @click.self="">
-      <div class="modal-content event-modal">
-        <div class="event-header">
-          <div v-if="characterConfig" class="event-character">
-            <span class="char-avatar">{{ characterConfig.avatar }}</span>
-            <span class="char-name">{{ characterConfig.name }}</span>
-          </div>
-          <span class="event-tag">剧情事件</span>
-        </div>
+    <Transition name="modal">
+      <div v-if="gameStore.showEventModal && event" class="modal-overlay" @click.self="">
+        <div class="modal-content event-modal" :class="{ 'result-mode': showResult, 'closing': isClosing }">
+          <Transition name="fade" mode="out-in">
+            <div v-if="!showResult" key="choices" class="event-content">
+              <div class="event-header">
+                <div v-if="characterConfig" class="event-character">
+                  <span class="char-avatar">{{ characterConfig.avatar }}</span>
+                  <span class="char-name">{{ characterConfig.name }}</span>
+                </div>
+                <span class="event-tag">剧情事件</span>
+              </div>
 
-        <h2 class="event-title">{{ event.title }}</h2>
-        
-        <p class="event-description">{{ event.description }}</p>
+              <h2 class="event-title">{{ event.title }}</h2>
+              
+              <p class="event-description">{{ event.description }}</p>
 
-        <div class="event-choices">
-          <button
-            v-for="choice in event.choices"
-            :key="choice.id"
-            class="choice-btn"
-            @click="handleChoice(choice.id)"
-          >
-            <span class="choice-text">{{ choice.text }}</span>
-            <div class="choice-effects">
-              <span 
-                v-for="(effect, idx) in choice.effects" 
-                :key="idx"
-                class="effect-tag"
-                :class="{ positive: effect.affinityChange > 0 || effect.moodChange > 0, negative: effect.affinityChange < 0 || effect.moodChange < 0 }"
-              >
-                {{ formatEffect(effect) }}
-              </span>
-              <span v-if="choice.resourceChange" class="effect-tag" :class="{ positive: choice.resourceChange > 0, negative: choice.resourceChange < 0 }">
-                代币 {{ choice.resourceChange > 0 ? '+' : '' }}{{ choice.resourceChange }}
-              </span>
+              <div class="event-choices">
+                <button
+                  v-for="choice in event.choices"
+                  :key="choice.id"
+                  class="choice-btn"
+                  @click="handleChoice(choice.id)"
+                >
+                  <span class="choice-text">{{ choice.text }}</span>
+                  <div class="choice-effects">
+                    <span 
+                      v-for="(effect, idx) in choice.effects" 
+                      :key="idx"
+                      class="effect-tag"
+                      :class="{ positive: effect.affinityChange > 0 || effect.moodChange > 0, negative: effect.affinityChange < 0 || effect.moodChange < 0 }"
+                    >
+                      {{ formatEffect(effect) }}
+                    </span>
+                    <span v-if="choice.resourceChange" class="effect-tag" :class="{ positive: choice.resourceChange > 0, negative: choice.resourceChange < 0 }">
+                      代币 {{ choice.resourceChange > 0 ? '+' : '' }}{{ choice.resourceChange }}
+                    </span>
+                  </div>
+                </button>
+              </div>
             </div>
-          </button>
+
+            <div v-else key="result" class="event-result">
+              <div class="result-icon">✨</div>
+              <h3 class="result-title">你选择了</h3>
+              <p class="result-choice">{{ selectedChoice?.text }}</p>
+              <div class="result-effects">
+                <span class="result-effect-text">{{ resultText }}</span>
+              </div>
+              <div class="result-hint">即将继续...</div>
+            </div>
+          </Transition>
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
 
 <style scoped>
 .event-modal {
   padding: 32px;
+  transition: all 0.3s ease;
+}
+
+.event-modal.result-mode {
+  text-align: center;
+}
+
+.event-content {
+  animation: slideIn 0.3s ease-out;
+}
+
+.event-result {
+  animation: slideIn 0.3s ease-out;
+  padding: 20px 0;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.fade-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.fade-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.result-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  animation: bounce 0.6s ease;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+
+.result-title {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.result-choice {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+}
+
+.result-effects {
+  padding: 16px 20px;
+  background: var(--accent-light);
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
+}
+
+.result-effect-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--accent-primary);
+}
+
+.result-hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 .event-header {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useGameStore } from '../stores/gameStore'
 import gameConfig from '../config/gameConfig'
 import { getRarityColor, getRarityLabel } from '../utils/gameUtils'
@@ -7,6 +7,21 @@ import { getRarityColor, getRarityLabel } from '../utils/gameUtils'
 const emit = defineEmits<{
   (e: 'close'): void
 }>()
+
+const isVisible = ref(false)
+
+onMounted(() => {
+  requestAnimationFrame(() => {
+    isVisible.value = true
+  })
+})
+
+function closeModal() {
+  isVisible.value = false
+  setTimeout(() => {
+    emit('close')
+  }, 300)
+}
 
 const gameStore = useGameStore()
 const selectedCharacterId = ref<string | null>(null)
@@ -47,12 +62,13 @@ function getCharacterAvatar(characterId: string): string {
 
 <template>
   <Teleport to="body">
-    <div class="modal-overlay" @click.self="emit('close')">
-      <div class="modal-content cards-modal">
-        <div class="modal-header">
-          <h2>🎴 卡牌收藏</h2>
-          <button class="close-btn" @click="emit('close')">✕</button>
-        </div>
+    <Transition name="modal">
+      <div v-if="isVisible" class="modal-overlay" @click.self="closeModal()">
+        <div class="modal-content cards-modal">
+          <div class="modal-header">
+            <h2>🎴 卡牌收藏</h2>
+            <button class="close-btn" @click="closeModal()">✕</button>
+          </div>
 
         <div class="collection-stats">
           <span class="stats-text">
@@ -114,6 +130,7 @@ function getCharacterAvatar(characterId: string): string {
         </div>
       </div>
     </div>
+    </Transition>
   </Teleport>
 </template>
 

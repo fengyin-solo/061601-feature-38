@@ -1,10 +1,25 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useSaveStore } from '../stores/saveStore'
 
 const emit = defineEmits<{
   (e: 'close'): void
 }>()
+
+const isVisible = ref(false)
+
+onMounted(() => {
+  requestAnimationFrame(() => {
+    isVisible.value = true
+  })
+})
+
+function closeModal() {
+  isVisible.value = false
+  setTimeout(() => {
+    emit('close')
+  }, 300)
+}
 
 const saveStore = useSaveStore()
 const mode = ref<'save' | 'load'>('save')
@@ -21,7 +36,7 @@ function saveGame(slotId: number) {
 function loadGame(slotId: number) {
   if (confirm('确定要加载这个存档吗？当前进度将丢失。')) {
     saveStore.loadFromSlot(slotId)
-    emit('close')
+    closeModal()
   }
 }
 
@@ -50,12 +65,13 @@ function createNewSave() {
 
 <template>
   <Teleport to="body">
-    <div class="modal-overlay" @click.self="emit('close')">
-      <div class="modal-content save-modal">
-        <div class="modal-header">
-          <h2>💾 存档管理</h2>
-          <button class="close-btn" @click="emit('close')">✕</button>
-        </div>
+    <Transition name="modal">
+      <div v-if="isVisible" class="modal-overlay" @click.self="closeModal()">
+        <div class="modal-content save-modal">
+          <div class="modal-header">
+            <h2>💾 存档管理</h2>
+            <button class="close-btn" @click="closeModal()">✕</button>
+          </div>
 
         <div class="mode-tabs">
           <button 
@@ -119,6 +135,7 @@ function createNewSave() {
         </div>
       </div>
     </div>
+    </Transition>
   </Teleport>
 </template>
 
